@@ -1,9 +1,11 @@
-import dotenv from 'dotenv';
-import path from 'path';
-import {Algorithm, Secret, SignOptions} from "jsonwebtoken";
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), '.env') });
 const config = {
     app: {
         port: parseInt(process.env.PORT ?? '4000', 10),
@@ -23,16 +25,15 @@ const config = {
         saltRounds: parseInt(process.env.SALT_ROUNDS ?? '12', 10)
     },
     jwt: {
-        accessSecret: process.env.JWT_ACCESS_SECRET as Secret,
-        accessExpiration: (process.env.JWT_ACCESS_EXPIRATION ?? '5m') as SignOptions['expiresIn'],
-        signAlgorithm: process.env.JWT_SIGN_ALGORITHM as SignOptions['algorithm'],
-        signAlgorithmJwtType: process.env.JWT_SIGN_ALGORITHM as Algorithm
+        accessSecret: process.env.JWT_ACCESS_SECRET,
+        accessExpiration: (process.env.JWT_ACCESS_EXPIRATION ?? '5m'),
+        signAlgorithm: process.env.JWT_SIGN_ALGORITHM,
+        signAlgorithmJwtType: process.env.JWT_SIGN_ALGORITHM
     },
     refresh: {
-        expiration: (process.env.REFRESH_TOKEN_EXPIRATION ?? 7) as number
+        expiration: (process.env.REFRESH_TOKEN_EXPIRATION ?? 7)
     },
     oauth2: {
-        session: process.env.SESSION_SECRET,
         google: {
             issuerUrl: process.env.GOOGLE_ISSUER_URL ?? 'https://accounts.google.com',
             clientId: process.env.GOOGLE_CLIENT_ID ?? '',
@@ -47,14 +48,6 @@ const config = {
             redirectUri: process.env.GITHUB_REDIRECT_URI ?? '',
             scope: process.env.GITHUB_CLIENT_SCOPES ?? '',
         }
-    },
-    bunny: {
-        apiKeyStorage: process.env.BUNNY_API_KEY_STORAGE ?? '',
-        storageZone: process.env.BUNNY_STORAGE_ZONE ?? 'img-uploader-api',
-        region: process.env.BUNNY_REGION ?? 'br',
-        apiKeyLibrary: process.env.BUNNY_API_KEY_LIBRARY ?? '',
-        videoLibraryId: process.env.BUNNY_VIDEO_LIBRARY_ID ?? ''
     }
 };
-
-export default config;
+exports.default = config;
