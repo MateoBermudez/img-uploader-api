@@ -2,7 +2,7 @@ import ImageRepo from "../repositories/imageRepo.ts";
 import {AppError} from "../middlewares/handleError.ts";
 import {User} from "../types/user.ts";
 import AuthRepo from "../repositories/authRepo.ts";
-import {Response, Request} from "express";
+import {Request} from "express";
 import config from "../config/env.config.ts";
 import TemporalUserRepo from "../repositories/temporalUserRepo.ts";
 
@@ -115,10 +115,11 @@ class imageService {
 
         const publicUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}`;
 
-        await ImageRepo.upload({
+        await ImageRepo.uploadVideo({
             userId: user.id,
             url: publicUrl,
-            filename: file.originalname
+            filename: file.originalname,
+            videoId: videoGuid
         });
 
         return ({
@@ -154,6 +155,53 @@ class imageService {
 
     public static async getImagesPage(page: number, limit: number) {
         return await ImageRepo.getImagesPage(page, limit);
+    }
+
+    public static async updateVideoStatusFromCDN(videoId: string, status: number) {
+
+        if (!videoId) {
+            throw new AppError('videoId / VideoGuid not provided', 400);
+        }
+
+        await ImageRepo.updateVideoStatusFromCDN(videoId, status);
+    }
+
+    static async getVideoStatus(videoId: string) {
+        if (!videoId) {
+            throw new AppError('videoId not provided', 400);
+        }
+
+        const video = await ImageRepo.getVideoByVideoUUID(videoId);
+        const statusCode = await ImageRepo.getStatusCode(video.status_code)
+
+        if (!video) {
+            throw new AppError('Video not found', 404);
+        }
+
+        return {
+            videoId: videoId,
+            status: { code: statusCode.code, name: statusCode.name, description: statusCode.description }
+        }
+    }
+
+    public static async getAllVideosByUser(user: User, page: number, limit: number) {
+        if (!user) {
+            throw new AppError('No authenticated user found', 401);
+        }
+
+        const userTemp = await AuthRepo.findUserByEmailOrUsername(user.email);
+
+        if (!userTemp) {
+            throw new AppError('User not found', 404);
+        }
+
+        const id = userTemp.id;
+
+        return await ImageRepo.getVideosByUserId(id, page, limit);
+    }
+
+    static async getVideosPage(page: number, limit: number) {
+        return await ImageRepo.getVideosPage(page, limit);
     }
 }
 

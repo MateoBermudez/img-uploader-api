@@ -1,7 +1,7 @@
 import {Request, Response} from 'express';
 import ImageService from "../services/imageService.ts";
 
-class imagesController {
+class mediaController {
     public static async getImage(req: Request, res: Response): Promise<void> {
         const id = req.params.id;
 
@@ -31,12 +31,22 @@ class imagesController {
 
         const images = await ImageService.getAllImagesByUser(user, page, limit);
 
-        res.json(images.map(img => ({
-            id: img.id,
-            url: img.url,
-            filename: img.filename,
-            uploadedAt: img.uploaded_at
+        const videos = await ImageService.getAllVideosByUser(user, page, limit);
+
+        const merged = mediaController.mergeImagesAndVideos(images, videos);
+
+        res.json(merged.map(item => ({
+            id: item.id,
+            url: item.url,
+            filename: item.filename,
+            uploadedAt: item.uploaded_at
         })));
+    }
+
+    private static mergeImagesAndVideos(images: any[], videos: any[]) {
+        const merged = [...images, ...videos];
+        merged.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+        return merged;
     }
 
     public static async getImagesPage(req: Request, res: Response): Promise<void> {
@@ -45,11 +55,15 @@ class imagesController {
 
         const imagesPage = await ImageService.getImagesPage(page, limit);
 
-        res.json(imagesPage.map(img => ({
-            id: img.id,
-            url: img.url,
-            filename: img.filename,
-            uploadedAt: img.uploaded_at
+        const videosPage = await ImageService.getVideosPage(page, limit);
+
+        const mergedPage = mediaController.mergeImagesAndVideos(imagesPage, videosPage);
+
+        res.json(mergedPage.map(item => ({
+            id: item.id,
+            url: item.url,
+            filename: item.filename,
+            uploadedAt: item.uploaded_at
         })));
     }
 
@@ -69,6 +83,23 @@ class imagesController {
 
         return res.json(videoData);
     }
+
+    public static async updateVideoStatusFromCDN(req: Request, res: Response) {
+        const videoId = req.body && (req.body.VideoGuid);
+        const status = req.body && (req.body.Status);
+
+        await ImageService.updateVideoStatusFromCDN(videoId, status);
+
+        return res.sendStatus(200);
+    }
+
+    public static async getVideoStatus(req: Request, res: Response) {
+        const videoId = req.params.videoId;
+
+        const status = await ImageService.getVideoStatus(videoId);
+
+        return res.json({ videoId, status });
+    }
 }
 
-export default imagesController;
+export default mediaController;

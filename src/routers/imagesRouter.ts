@@ -1,5 +1,5 @@
 import {Router} from "express";
-import imagesController from "../controllers/imagesController.ts";
+import mediaController from "../controllers/mediaController.ts";
 import authenticate from "../middlewares/authenticate.ts";
 import guestFingerprint from "../middlewares/guestFingerprint.ts";
 import {optionalAuthenticate} from "../middlewares/optionalAuthenticate.ts";
@@ -9,10 +9,10 @@ import {uploadMiddleware} from "../middlewares/uploadMiddleware.ts";
 function imagesRouter() {
     const router = Router();
 
-    router.get('/page', imagesController.getImagesPage);
-    router.get('/get/:id', authenticate, imagesController.getImage);
-    router.get('/', authenticate, imagesController.getAllImagesByUser);
-    router.delete('/delete/:id', authenticate, imagesController.deleteImage);
+    router.get('/page', mediaController.getImagesPage);
+    router.get('/get/:id', authenticate, mediaController.getImage);
+    router.get('/', authenticate, mediaController.getAllImagesByUser);
+    router.delete('/delete/:id', authenticate, mediaController.deleteImage);
 
     router.post(
         '/upload',
@@ -20,15 +20,19 @@ function imagesRouter() {
         optionalAuthenticate,
         resolveUploadOwner,
         uploadMiddleware,
-        imagesController.uploadImage
+        mediaController.uploadImage
     );
 
     router.post(
         '/upload/video',
         authenticate,
         uploadMiddleware,
-        imagesController.uploadVideo
-    )
+        mediaController.uploadVideo
+    );
+
+    router.post('/video/update-status', mediaController.updateVideoStatusFromCDN);
+
+    router.get('/video/get-status/:videoId', authenticate, mediaController.getVideoStatus);
 
     return router;
 }
