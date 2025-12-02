@@ -9,6 +9,8 @@ import {Image} from "../types/dto/image";
 import {Video} from "../types/dto/video";
 import {VideoStatus} from "../types/dto/videoStatus";
 import {BunnyResponseJson} from "../types/dto/bunnyResponseJson";
+import {Media} from "../types/dto/media";
+import MediaService from "./mediaService";
 
 class mediaService {
     public static async getImage(id: string | undefined): Promise<Image> {
@@ -25,18 +27,16 @@ class mediaService {
         return image;
     }
 
+    public static mergeImagesAndVideos(images: Image[], videos: Video[]): Media[] {
+        const merged: Image[] = [...images, ...videos];
+        merged.sort((a: Image, b: Image): number => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        return merged;
+    }
+
     public static async uploadImage(file: Express.Multer.File | undefined, req: Request): Promise<string> {
-        if (!file) {
-            throw new AppError("No file uploaded", 400);
-        }
+        if (!file) throw new AppError("No file uploaded", 400);
 
-        const BUNNY_STORAGE_ZONE = config.bunny.storageZone;
-        const BUNNY_API_KEY = config.bunny.apiKeyStorage;
-        const BUNNY_REGION = config.bunny.region;
-
-        if (!BUNNY_STORAGE_ZONE || !BUNNY_API_KEY || !BUNNY_REGION) {
-            throw new AppError("Missing BunnyCDN configuration", 500);
-        }
+        const { BUNNY_STORAGE_ZONE, BUNNY_API_KEY, BUNNY_REGION } = MediaService.loadImageEnvVariables();
 
         const auxiliaryName = file.originalname.replace(/\s+/g, '_');
 
@@ -44,20 +44,7 @@ class mediaService {
         const uploadUrl = `https://${BUNNY_REGION}.storage.bunnycdn.com/${BUNNY_STORAGE_ZONE}/${fileName}`;
         const publicUrl = `https://${BUNNY_STORAGE_ZONE}.b-cdn.net/${fileName}`;
 
-        const response = await fetch(uploadUrl, {
-            method: "PUT",
-            headers: {
-                AccessKey: BUNNY_API_KEY,
-                "Content-Type": file.mimetype,
-            },
-            body: new Uint8Array(file.buffer),
-        });
-
-        if (!response.ok) {
-            const text = await response.text();
-            console.error("Bunny upload error:", text);
-            throw new AppError(`Error while uploading to BunnyCDN: ${response.statusText}`, 500);
-        }
+        await MediaService.uploadMediaToBunnyCDN(file, uploadUrl, BUNNY_API_KEY);
 
         const { userId, tempUserId } = req.uploadContext || {};
         if (userId) {
@@ -84,10 +71,50 @@ class mediaService {
         const user: User | null = await AuthRepo.findUserByEmailOrUsername(authUser.email);
         if (!user) throw new AppError('User not found', 404);
 
-        const libraryId = config.bunny.videoLibraryId;
-        const apiKey = config.bunny.apiKeyLibrary;
-        if (!libraryId || !apiKey) throw new AppError('BunnyCDN video configuration missing', 500);
+        const { BUNNY_VIDEO_LIBRARY_ID, BUNNY_API_KEY } = MediaService.loadVideoEnvVariables();
 
+        const videoGuid: string = await MediaService.createVideoResourceInBunnyCDN(file, BUNNY_API_KEY, BUNNY_VIDEO_LIBRARY_ID);
+
+        const uploadUrl = `https://video.bunnycdn.com/library/${BUNNY_VIDEO_LIBRARY_ID}/videos/${videoGuid}`;
+
+        await MediaService.uploadMediaToBunnyCDN(file, uploadUrl, BUNNY_API_KEY);
+
+        const publicUrl = `https://iframe.mediadelivery.net/embed/${BUNNY_VIDEO_LIBRARY_ID}/${videoGuid}`;
+
+        await MediaRepo.uploadVideo({
+            userId: user.id,
+            url: publicUrl,
+            filename: file.originalname,
+            videoId: videoGuid
+        });
+
+        return ({
+            url: publicUrl,
+            type: 'video',
+            videoUuid: videoGuid
+        } as Video);
+    }
+
+    private static async uploadMediaToBunnyCDN(file: Express.Multer.File, uploadUrl: string, apiKey: string): Promise<void> {
+        const putResp: Response = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                AccessKey: apiKey,
+                'Content-Type': file.mimetype
+            },
+            body: new Uint8Array(file.buffer)
+        });
+
+        if (!putResp.ok) {
+            const txt: string = await putResp.text();
+            console.error('Bunny media upload error:', putResp.status, txt);
+            throw new AppError('Error uploading media to BunnyCDN', 500);
+        }
+
+        return;
+    }
+
+    private static async createVideoResourceInBunnyCDN(file: Express.Multer.File, apiKey: string, libraryId: string): Promise<string> {
         const createResp: Response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
             method: 'POST',
             headers: {
@@ -107,36 +134,30 @@ class mediaService {
         const videoGuid: string = createJson?.guid;
         if (!videoGuid) throw new AppError('Video GUID not returned by BunnyCDN', 500);
 
-        const uploadUrl = `https://video.bunnycdn.com/library/${libraryId}/videos/${videoGuid}`;
-        const putResp: Response = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-                AccessKey: apiKey,
-                'Content-Type': file.mimetype
-            },
-            body: new Uint8Array(file.buffer)
-        });
+        return videoGuid;
+    }
 
-        if (!putResp.ok) {
-            const txt = await putResp.text();
-            console.error('Bunny video upload error:', putResp.status, txt);
-            throw new AppError('Error uploading video to BunnyCDN', 500);
+    private static loadImageEnvVariables() {
+        const BUNNY_STORAGE_ZONE: string = config.bunny.storageZone;
+        const BUNNY_API_KEY: string = config.bunny.apiKeyStorage;
+        const BUNNY_REGION: string = config.bunny.region;
+
+        if (!BUNNY_STORAGE_ZONE || !BUNNY_API_KEY || !BUNNY_REGION) {
+            throw new AppError("Missing BunnyCDN storage configuration", 500);
         }
 
-        const publicUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}`;
+        return { BUNNY_STORAGE_ZONE, BUNNY_API_KEY, BUNNY_REGION };
+    }
 
-        await MediaRepo.uploadVideo({
-            userId: user.id,
-            url: publicUrl,
-            filename: file.originalname,
-            videoId: videoGuid
-        });
+    private static loadVideoEnvVariables() {
+        const BUNNY_VIDEO_LIBRARY_ID: string = config.bunny.videoLibraryId;
+        const BUNNY_API_KEY: string = config.bunny.apiKeyLibrary;
 
-        return ({
-            url: publicUrl,
-            type: 'video',
-            videoUuid: videoGuid
-        } as Video);
+        if (!BUNNY_VIDEO_LIBRARY_ID || !BUNNY_API_KEY) {
+            throw new AppError("Missing BunnyCDN stream configuration", 500);
+        }
+
+        return { BUNNY_VIDEO_LIBRARY_ID, BUNNY_API_KEY };
     }
 
     public static async deleteImage(id: string | undefined): Promise<void> {

@@ -99,7 +99,7 @@ class AuthService {
             throw new AppError("JWT configuration is missing", 500);
         }
 
-        const accessToken = jwt.sign(
+        const accessToken: string = jwt.sign(
             {username: user.username, email: user.email},
             config.jwt.accessSecret,
             {
