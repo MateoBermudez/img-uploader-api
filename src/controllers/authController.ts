@@ -1,19 +1,21 @@
-import AuthService from "../services/authService.ts";
+import AuthService from "../services/authService";
 import { Request, Response } from "express";
-import {User} from "../types/user.ts";
-import config from "../config/env.config.ts";
-import {AppError} from "../middlewares/handleError.ts";
-import TemporalUserRepo from "../repositories/temporalUserRepo.ts";
+import {User} from "../types/dto/user";
+import config from "../config/env.config";
+import {AppError} from "../middlewares/handleError";
+import TemporalUserRepo from "../repositories/temporalUserRepo";
+import {AuthResponse} from "../types/dto/authResponse";
+import {COOKIE_NAMES} from "../types/constants";
 
 class AuthController {
-    public static async login(req: Request, res: Response) {
+    public static async login(req: Request, res: Response): Promise<void> {
         const {identifier, password} = req.body;
-        const userAgent = req.get('User-Agent') ?? null;
-        const ipAddress = req.ip ?? req.socket.remoteAddress ?? null;
+        const userAgent: string | null = req.get('User-Agent') ?? null;
+        const ipAddress: string | null = req.ip ?? req.socket.remoteAddress ?? null;
 
-        const { accessToken, refreshToken } = await AuthService.login(identifier, password, userAgent, ipAddress);
+        const authResponse: AuthResponse = await AuthService.login(identifier, password, userAgent, ipAddress);
 
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie(COOKIE_NAMES.REFRESH_TOKEN, authResponse.refreshToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'strict',
@@ -23,17 +25,17 @@ class AuthController {
 
         await AuthController.linkToUser(req, identifier, res);
 
-        res.json({ token: accessToken });
+        res.status(200).json({ token: authResponse.accessToken });
     }
 
-    public static async signUp(req: Request, res: Response) {
-        const user: User = req.body.user;
-        const userAgent = req.get('User-Agent') ?? null;
-        const ipAddress = req.ip ?? req.socket.remoteAddress ?? null;
+    public static async signUp(req: Request, res: Response): Promise<void> {
+        const user: User = req.body?.user;
+        const userAgent: string | null = req.get('User-Agent') ?? null;
+        const ipAddress: string | null = req.ip ?? req.socket.remoteAddress ?? null;
 
-        const { accessToken, refreshToken } = await AuthService.signUp(user, userAgent, ipAddress);
+        const authResponse: AuthResponse = await AuthService.signUp(user, userAgent, ipAddress);
 
-        res.cookie('refreshToken', refreshToken, {
+        res.cookie(COOKIE_NAMES.REFRESH_TOKEN, authResponse.refreshToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'strict',
@@ -43,53 +45,53 @@ class AuthController {
 
         await AuthController.linkToUser(req, user.email, res);
 
-        res.json({ token: accessToken });
+        res.status(200).json({ token: authResponse.accessToken });
     }
 
-    public static async logout(req: Request, res: Response) {
-        const authHeader = req.headers.authorization;
+    public static async logout(req: Request, res: Response): Promise<void> {
+        const authHeader: string | undefined = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             throw new AppError("No access token provided", 401);
         }
 
-        const accessToken = authHeader.replace('Bearer ', '');
+        const accessToken: string = authHeader.replace('Bearer ', '');
 
-        const refreshToken: string = req.cookies.refreshToken;
+        const refreshToken: string = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN];
 
         if (!refreshToken) {
             throw new AppError("No refresh token provided", 401);
         }
 
-        res.clearCookie('refreshToken', {
+        res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN , {
             httpOnly: true,
             secure: true,
             sameSite: 'strict',
         });
 
-        res.clearCookie('guest_fp', {
+        res.clearCookie(COOKIE_NAMES.GUEST_FINGERPRINT, {
             httpOnly: true,
             secure: true,
             sameSite: 'none'
         });
 
         await AuthService.logout(accessToken, refreshToken);
-        res.json({ message: "Logged out successfully" });
+        res.status(200).json({ message: "Logged out successfully" });
     }
 
-    public static async refreshToken(req: Request, res: Response) {
-        let refreshToken: string = req.cookies.refreshToken;
+    public static async refreshToken(req: Request, res: Response): Promise<void> {
+        let refreshToken: string = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN];
 
         if (!refreshToken) {
             throw new AppError("No refresh token provided", 401)
         }
 
-        const userAgent = req.get('User-Agent') ?? null;
-        const ipAddress = req.ip ?? req.socket.remoteAddress ?? null;
+        const userAgent: string | null = req.get('User-Agent') ?? null;
+        const ipAddress: string | null = req.ip ?? req.socket.remoteAddress ?? null;
 
         const { accessToken, newRefreshToken } = await AuthService.refreshToken(refreshToken, userAgent, ipAddress);
 
-        res.cookie('refreshToken', newRefreshToken, {
+        res.cookie(COOKIE_NAMES.REFRESH_TOKEN, newRefreshToken, {
             httpOnly: true,
             secure: true,
             sameSite: 'strict',
@@ -100,7 +102,7 @@ class AuthController {
         res.json({ token: accessToken });
     }
 
-    public static async me(req: Request, res: Response) {
+    public static async me(req: Request, res: Response): Promise<void> {
         let accessToken: string = req.headers.authorization?.replace('Bearer ', '') ?? '';
 
         if (!accessToken) {
@@ -111,13 +113,13 @@ class AuthController {
         res.json({ user });
     }
 
-    public static async linkToUser(req: Request, userIdentifier: string, res: Response) {
-        const fingerprint = (req as any).cookies?.guest_fp || (req as any).guest_fp;
+    public static async linkToUser(req: Request, userIdentifier: string, res: Response): Promise<void> {
+        const fingerprint: string | undefined = req.guest_fp ?? req.cookies?.[COOKIE_NAMES.GUEST_FINGERPRINT];
         if (!fingerprint) return;
 
         await TemporalUserRepo.linkToUser(fingerprint, userIdentifier);
 
-        res.clearCookie('guest_fp', {
+        res.clearCookie(COOKIE_NAMES.GUEST_FINGERPRINT, {
             httpOnly: true,
             secure: true,
             sameSite: 'none',

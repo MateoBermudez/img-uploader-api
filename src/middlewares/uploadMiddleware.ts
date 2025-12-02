@@ -1,5 +1,5 @@
-import multer from "multer";
+import multer, {Multer} from "multer";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload: Multer = multer({ storage: multer.memoryStorage() });
 
 export const uploadMiddleware = upload.single("file");

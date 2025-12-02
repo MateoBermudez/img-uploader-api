@@ -23,5 +23,5 @@ export const handleCsrfError = (
             message: 'CSRF token validation failed',
         });
     }
-    next(err as Error);
+    return next(err as Error);
 };

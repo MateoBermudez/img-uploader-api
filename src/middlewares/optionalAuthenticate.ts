@@ -1,8 +1,8 @@
 import {NextFunction, Request, Response} from "express";
 import jwt, {JwtPayload} from "jsonwebtoken";
-import config from "../config/env.config.ts";
-import {User} from "../types/user.ts";
-import {AppError} from "./handleError.ts";
+import config from "../config/env.config";
+import {User} from "../types/dto/user";
+import {AppError} from "./handleError";
 
 function validateToken(token: string | undefined) {
     if (!token) {
@@ -17,8 +17,8 @@ function validateToken(token: string | undefined) {
     }
 }
 
-export function optionalAuthenticate(req: Request, _res: Response, next: NextFunction) {
-    const authHeader = req.headers.authorization;
+export function optionalAuthenticate(req: Request, _res: Response, next: NextFunction): void {
+    const authHeader: string | undefined = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
         return next();
     }
@@ -26,7 +26,7 @@ export function optionalAuthenticate(req: Request, _res: Response, next: NextFun
     const payload = validateToken(authHeader?.replace("Bearer ", ""));
 
     if (payload) {
-        (req as any).user = {
+        req.appUser = {
             email: payload.email,
             username: payload.username
         } as User;

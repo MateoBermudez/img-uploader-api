@@ -1,9 +1,9 @@
 import {Router} from "express";
-import healthController from "../controllers/healthController.ts";
-import metricsController from "../controllers/metricsController.ts";
-import authenticate from "../middlewares/authenticate.ts";
+import healthController from "../controllers/healthController";
+import metricsController from "../controllers/metricsController";
+import authenticate from "../middlewares/authenticate";
 
-function appStatsRouter () {
+function appStatsRouter (): Router {
     const router = Router();
 
     router.get('/health', authenticate, healthController.getHealth);

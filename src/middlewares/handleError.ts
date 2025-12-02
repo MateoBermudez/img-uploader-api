@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import config from "../config/env.config.ts";
+import config from "../config/env.config";
 
 class AppError extends Error {
     statusCode: number;
@@ -17,8 +17,8 @@ const handleError = (
     res: Response,
     _next: NextFunction
 ): void => {
-    const statusCode = err instanceof AppError ? err.statusCode : 500;
-    const message = err.message || 'Internal Server Error';
+    const statusCode: number = err instanceof AppError ? err.statusCode : 500;
+    const message: string = err.message || 'Internal Server Error';
 
     res.status(statusCode).json({
         success: false,

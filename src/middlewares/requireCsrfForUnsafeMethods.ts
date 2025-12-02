@@ -1,12 +1,10 @@
 import { RequestHandler } from 'express';
-import { csrfProtection } from './csrf.ts';
-
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const SAFE_URI = '/images/video/update-status';
+import { csrfProtection } from './csrf';
+import {SAFE_METHODS, SAFE_URIS} from "../types/constants";
 
 export const requireCsrfForUnsafeMethods: RequestHandler = (req, res, next) => {
     if (SAFE_METHODS.has(req.method)) return next();
-    if (req.path.includes(SAFE_URI)) return next();
+    if (req.path.includes(SAFE_URIS.VIDEO_STATUS_UPDATE)) return next();
     return csrfProtection(req, res, next);
 };
 

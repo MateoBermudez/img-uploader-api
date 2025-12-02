@@ -1,19 +1,20 @@
 import express from "express";
 import session from "express-session";
-import config from './config/env.config.ts';
+import config from './config/env.config';
 import http from "http";
 import cors from "cors";
-import pool from "./config/dbConfig.ts";
-import appStatsRouter from "./routers/appStatsRouter.ts";
-import authRouter from "./routers/authRouter.ts";
+import pool from "./config/dbConfig";
+import appStatsRouter from "./routers/appStatsRouter";
+import authRouter from "./routers/authRouter";
 import cookieParser from "cookie-parser";
-import {handleError} from "./middlewares/handleError.ts";
-import {handleCsrfError} from "./middlewares/handleCsrfError.ts";
-import csrfRouter from "./routers/csrfRouter.ts";
-import requireCsrfForUnsafeMethods from "./middlewares/requireCsrfForUnsafeMethods.ts";
-import OAuthRouter from "./routers/oAuthRouter.ts";
-import passport from "./config/passport.ts";
-import imagesRouter from "./routers/imagesRouter.ts";
+import {handleError} from "./middlewares/handleError";
+import {handleCsrfError} from "./middlewares/handleCsrfError";
+import csrfRouter from "./routers/csrfRouter";
+import requireCsrfForUnsafeMethods from "./middlewares/requireCsrfForUnsafeMethods";
+import OAuthRouter from "./routers/oAuthRouter";
+import passport from "./config/passport";
+import mediaRouter from "./routers/mediaRouter";
+import './types/augmentations'
 
 class Server {
     public app: express.Application;
@@ -73,7 +74,7 @@ class Server {
         this.app.use(passport.session());
         router.use('/auth/oauth', OAuthRouter());
 
-        router.use('/images', imagesRouter());
+        router.use('/media', mediaRouter());
 
         this.app.use('/v1', router);
 

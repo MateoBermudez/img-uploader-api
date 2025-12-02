@@ -1,24 +1,24 @@
 import { Request, Response, NextFunction } from "express";
-import config from "../config/env.config.ts";
+import config from "../config/env.config";
+import {COOKIE_NAMES} from "../types/constants";
 
 function generateFingerprint() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export default function guestFingerprint(req: Request, res: Response, next: NextFunction) {
-    const cookieName = "guest_fp";
-    const fp = (req as any).cookies?.[cookieName];
+export default function guestFingerprint(req: Request, res: Response, next: NextFunction): void {
+    const fp: string = req.cookies?.[COOKIE_NAMES.GUEST_FINGERPRINT];
     if (!fp) {
-        const newFp = generateFingerprint();
-        res.cookie(cookieName, newFp, {
+        const newFp: string = generateFingerprint();
+        res.cookie(COOKIE_NAMES.GUEST_FINGERPRINT, newFp, {
             maxAge: config.refresh.expiration * 24 * 60 * 60 * 1000,
             httpOnly: true,
             secure: true,
             sameSite: 'none',
         });
-        (req as any).guest_fp = newFp;
+        req.guest_fp = newFp;
     } else {
-        (req as any).guest_fp = fp;
+        req.guest_fp = fp;
     }
     next();
 }

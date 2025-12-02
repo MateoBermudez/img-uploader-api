@@ -1,5 +1,7 @@
-import pg from 'pg';
-import config from './env.config.ts';
+import pg, {QueryResult} from 'pg';
+import config from './env.config';
+import {PoolStats} from "../types/dto/poolStats";
+import {AppError} from "../middlewares/handleError";
 
 const { Pool } = pg;
 
@@ -14,11 +16,11 @@ const pool = new Pool({
     connectionTimeoutMillis: 2000,
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err: Error): void => {
     console.error('DB connection error:', err, err.message)
 });
 
-export function getPoolStats() {
+export function getPoolStats(): PoolStats {
     return {
         total: pool.totalCount,
         idle: pool.idleCount,
@@ -27,10 +29,19 @@ export function getPoolStats() {
 }
 
 export async function getPgActivityCount(): Promise<number> {
-    const res = await pool.query(
+    const res: QueryResult<{ count: string }> = await pool.query(
         'SELECT COUNT(*) FROM pg_stat_activity WHERE datname = $1',
         [config.db.name]
     );
+
+    if (res.rows.length === 0) {
+        return 0;
+    }
+
+    if (!res.rows[0]) {
+        throw new AppError('Failed to retrieve pg_stat_activity count', 500);
+    }
+
     return parseInt(res.rows[0].count, 10);
 }
 

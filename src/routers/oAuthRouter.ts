@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import OAuthController from '../controllers/oAuthController.ts';
-import guestFingerprint from "../middlewares/guestFingerprint.ts";
+import OAuthController from '../controllers/oAuthController';
+import guestFingerprint from "../middlewares/guestFingerprint";
 
 function oauthRouter() {
     const router = Router();

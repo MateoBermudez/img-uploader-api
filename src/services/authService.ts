@@ -1,14 +1,15 @@
-import {User} from "../types/user.ts";
-import AuthRepo from "../repositories/authRepo.ts";
+import {User} from "../types/dto/user";
+import AuthRepo from "../repositories/authRepo";
 import jwt from 'jsonwebtoken';
-import config from "../config/env.config.ts";
+import config from "../config/env.config";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
-import {AppError} from "../middlewares/handleError.ts";
-import {OAuthProviderUser} from "../types/oAuthProviderUser.ts";
+import {AppError} from "../middlewares/handleError";
+import {OAuthProviderUser} from "../types/dto/oAuthProviderUser";
+import {AuthResponse} from "../types/dto/authResponse";
 
 class AuthService {
-    public static async login(identifier: string, password: string, userAgent: string | null, ipAddress: string | null) {
+    public static async login(identifier: string, password: string, userAgent: string | null, ipAddress: string | null): Promise<AuthResponse> {
         if (!identifier || !password) {
             throw new AppError("Identifier and password are required", 400);
         }
@@ -28,10 +29,13 @@ class AuthService {
 
         await AuthRepo.saveRefreshToken(user.id, refreshToken, expiration, userAgent, ipAddress);
 
-        return { accessToken, refreshToken };
+        return {
+            accessToken,
+            refreshToken
+        } as AuthResponse;
     }
 
-    public static async signUp(user: User, userAgent: string | null, ipAddress: string | null) {
+    public static async signUp(user: User, userAgent: string | null, ipAddress: string | null): Promise<AuthResponse> {
         const saltRounds: number = config.security.saltRounds;
         if (!user) {
             throw new AppError("User data is required", 400);
@@ -53,10 +57,13 @@ class AuthService {
 
         await AuthRepo.saveRefreshToken(createdUser.id, refreshToken, expiration, userAgent, ipAddress);
 
-        return { accessToken, refreshToken };
+        return {
+            accessToken,
+            refreshToken
+        } as AuthResponse;
     }
 
-    public static async logout(accessToken: string, refreshToken: string) {
+    public static async logout(accessToken: string, refreshToken: string): Promise<boolean> {
         await AuthRepo.revokeRefreshToken(refreshToken);
         return AuthRepo.logoutUser(accessToken);
     }
@@ -87,7 +94,11 @@ class AuthService {
         return { accessToken: newAccessToken, newRefreshToken: newRefreshToken };
     }
 
-    private static async createTokens (user: User) {
+    private static async createTokens (user: User): Promise<AuthResponse> {
+        if (!config.jwt.accessExpiration || !config.jwt.signAlgorithm) {
+            throw new AppError("JWT configuration is missing", 500);
+        }
+
         const accessToken = jwt.sign(
             {username: user.username, email: user.email},
             config.jwt.accessSecret,
@@ -97,14 +108,14 @@ class AuthService {
             }
         );
 
-        const refreshToken = crypto.randomBytes(64).toString('hex');
+        const refreshToken: string = crypto.randomBytes(64).toString('hex');
         const expiration = new Date();
         expiration.setDate(expiration.getDate() + config.refresh.expiration);
 
-        return { accessToken, refreshToken, expiration };
+        return { accessToken, refreshToken, expiration } as AuthResponse;
     }
 
-    public static async me (accessToken: string) {
+    public static async me (accessToken: string): Promise<User> {
         let decoded: jwt.JwtPayload;
         try {
             decoded = jwt.verify(accessToken, config.jwt.accessSecret, {
@@ -132,15 +143,19 @@ class AuthService {
         let userId: string | null = await AuthRepo.searchOAuthUser(p.provider, p.providerId);
 
         if (!userId) {
-            const fullName = (p.name ?? '').trim();
+            const fullName: string = (p.name ?? '').trim();
             const [firstName, ...rest] = fullName ? fullName.split(/\s+/) : [''];
-            const lastName = rest.join(' ');
-            const email = p.email ?? `${p.provider}_${p.providerId}@placeholder.local`;
+            const lastName: string = rest.join(' ');
+            const email: string = p.email ?? `${p.provider}_${p.providerId}@placeholder.local`;
 
             const usernameBase = fullName.replace(' ', '');
             const username = await AuthService.generateUniqueUsername(usernameBase);
 
-            const newUser = await AuthRepo.createOAuthUser({
+            if (!firstName) {
+                throw new AppError("OAuth provider did not supply a valid name", 400);
+            }
+
+            const newUser: User = await AuthRepo.createOAuthUser({
                 firstName,
                 lastName,
                 email,
@@ -165,20 +180,20 @@ class AuthService {
         return { accessToken, refreshToken, email: user.email };
     }
 
-    private static usernameWithoutAccents(input: string) {
+    private static usernameWithoutAccents(input: string): string {
         const withoutAccents = input
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '');
         return withoutAccents || 'user';
     }
 
-    private static async generateUniqueUsername(base: string) {
-        const baseNorm = AuthService.usernameWithoutAccents(base);
-        let candidate = baseNorm;
-        let n = 0;
+    private static async generateUniqueUsername(base: string): Promise<string> {
+        const baseNorm: string = AuthService.usernameWithoutAccents(base);
+        let candidate: string = baseNorm;
+        let iterations: number = 0;
         while (await AuthRepo.findUserByEmailOrUsername(candidate)) {
-            n += 1;
-            candidate = `${baseNorm}${n}`;
+            iterations += 1;
+            candidate = `${baseNorm}${iterations}`;
         }
         return candidate;
     }

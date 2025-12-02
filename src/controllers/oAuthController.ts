@@ -1,13 +1,15 @@
-import {NextFunction, Request, Response} from 'express';
-import AuthService from '../services/authService.ts';
-import config from '../config/env.config.ts';
-import passport from '../config/passport.ts';
-import {OAuthProvider, OAuthProviderUser} from "../types/oAuthProviderUser.ts";
-import AuthController from "./authController.ts";
+import {NextFunction, Request, RequestHandler, Response} from 'express';
+import AuthService from '../services/authService';
+import config from '../config/env.config';
+import passport from '../config/passport';
+import {OAuthProvider, OAuthProviderUser} from "../types/dto/oAuthProviderUser";
+import AuthController from "./authController";
+import {COOKIE_NAMES} from "../types/constants";
+import {AuthenticateOptions} from "../types/dto/authenticateOptions";
 
 
 class OAuthController {
-    public static async loginSuccess(req: Request, res: Response) {
+    public static async loginSuccess(req: Request, res: Response): Promise<void> {
         if (req.user) {
             res.json({
                 success: true,
@@ -19,12 +21,12 @@ class OAuthController {
         }
     };
 
-    public static async loginFailed(_req: Request, res: Response) {
+    public static async loginFailed(_req: Request, res: Response): Promise<void> {
         res.status(401).json({ success: false, message: 'Authentication failed' });
     };
 
-    public static async logout(req: Request, res: Response) {
-        req.logout(() => {
+    public static async logout(req: Request, res: Response): Promise<void> {
+        req.logout((): void => {
             res.json(
                 {
                     success: true,
@@ -36,20 +38,21 @@ class OAuthController {
 
     public static initiateOAuth(provider: OAuthProvider) {
         return (req: Request, res: Response, next: NextFunction) => {
-            const scopes =
+            const scopes: string =
                 provider === 'google'
                     ? (config.oauth2.google.scope || 'profile email')
                     : (config.oauth2.github.scope || 'read:user user:email');
 
-            const middleware = passport.authenticate(provider, { scope: scopes } as any);
+            const options: AuthenticateOptions = { scope: scopes.split(' ') };
+            const middleware: RequestHandler = passport.authenticate(provider, options);
             return middleware(req, res, next);
         };
     };
 
     public static oauthCallbackHandler(provider: OAuthProvider){
         return (req: Request, res: Response, next: NextFunction) => {
-            const middleware = passport.authenticate(provider, { failureRedirect: '/v1/auth/oauth/failed' });
-            return middleware(req, res, (err?: any) => {
+            const middleware: RequestHandler = passport.authenticate(provider, { failureRedirect: '/v1/auth/oauth/failed' });
+            return middleware(req, res, (err?: unknown): void | Promise<void> => {
                 if (err) return next(err);
                 return OAuthController.oauthCallback(provider)(req, res, next);
             });
@@ -57,7 +60,7 @@ class OAuthController {
     };
 
     public static oauthCallback(_provider: OAuthProvider) {
-        return async (req: Request, res: Response, next: NextFunction) => {
+        return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
             try {
                 if (!req.user) {
                     return res.redirect('/v1/auth/oauth/failed');
@@ -65,8 +68,8 @@ class OAuthController {
 
                 const providerUser = req.user as OAuthProviderUser;
 
-                const userAgent = req.get('User-Agent') ?? null;
-                const ipAddress = req.ip ?? req.socket.remoteAddress ?? null;
+                const userAgent: string | null = req.get('User-Agent') ?? null;
+                const ipAddress: string | null = req.ip ?? req.socket.remoteAddress ?? null;
 
                 const {refreshToken, email} = await AuthService.oauthUpsertAndLogin(
                     providerUser,
@@ -75,9 +78,9 @@ class OAuthController {
                 );
 
                 const frontendUrl = new URL(config.app.frontendUrl);
-                const redirectTo = new URL('/', frontendUrl).toString();
+                const redirectTo: string = new URL('/', frontendUrl).toString();
 
-                res.cookie('refreshToken', refreshToken, {
+                res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, {
                     httpOnly: true,
                     secure: true,
                     sameSite: 'strict',

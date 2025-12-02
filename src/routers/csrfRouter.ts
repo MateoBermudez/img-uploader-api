@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { csrfProtection } from '../middlewares/csrf.ts';
-import CsrfController from "../controllers/csrfController.ts";
+import { csrfProtection } from '../middlewares/csrf';
+import CsrfController from "../controllers/csrfController";
 
 function csrfRouter() {
     const router = Router();

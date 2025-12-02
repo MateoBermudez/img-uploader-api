@@ -1,20 +1,17 @@
 import { Request, Response } from "express";
-import { getPgActivityCount, getPoolStats } from "../config/dbConfig.ts";
+import { getPgActivityCount, getPoolStats } from "../config/dbConfig";
+import {PoolStats} from "../types/dto/poolStats";
+import {Metrics} from "../types/dto/metrics";
 
 class MetricsController {
-    public static async getMetrics(_req: Request, res: Response) {
-        const dbStats = getPoolStats();
-        const pgStatsCount = await getPgActivityCount();
-        res.json({
-            db: {
-                totalConnections: dbStats.total,
-                idleConnections: dbStats.idle,
-                waitingRequests: dbStats.waiting
-            },
-            stats: {
-                activeConnections: pgStatsCount
-            }
-        });
+    public static async getMetrics(_req: Request, res: Response): Promise<void> {
+        const dbStats: PoolStats = getPoolStats();
+        const pgStatsCount: number = await getPgActivityCount();
+        const metrics: Metrics = {
+            db: dbStats,
+            connections: pgStatsCount,
+        }
+        res.status(200).send(metrics);
     }
 }
 
